@@ -382,6 +382,10 @@ if 'uploaded_file_ref' not in st.session_state:
     st.session_state.uploaded_file_ref = None
 if 'base_folder_cache' not in st.session_state: 
     st.session_state.base_folder_cache = os.getcwd()
+if 'loaded_file_path' not in st.session_state:
+    st.session_state.loaded_file_path = None
+if 'doc_editor_path' not in st.session_state:
+    st.session_state.doc_editor_path = None
 if 'vendor_master_df' not in st.session_state: 
     st.session_state.vendor_master_df = None
 if 'data_version' not in st.session_state: 
@@ -2697,12 +2701,71 @@ def render_page_2():
 
     with col_list:
         if st.session_state.df_data is None:
-            # Path settings in expander
-            with st.expander("⚙️ ตั้งค่า Path (Advanced)", expanded=False):
-                default_path = r"D:\Project\ocr\output"
+            # Path settings - เปิด path ได้โดยตรงบน Cloud/Server
+            with st.expander("⚙️ ตั้งค่า Path (Advanced)", expanded=True):
+                # กำหนด default path ตาม OS
+                if platform.system() == 'Windows':
+                    default_path = r"D:\Project\ocr\output"
+                else:
+                    default_path = os.path.expanduser("~/ocr/output")
+                
                 if not os.path.exists(default_path): 
                     default_path = os.getcwd()
-                base_folder = st.text_input("Path หลัก:", value=default_path)
+                
+                col_path, col_load = st.columns([0.85, 0.15])
+                with col_path:
+                    base_folder = st.text_input("Path หลัก:", value=st.session_state.get('doc_editor_path', default_path))
+                    st.session_state.doc_editor_path = base_folder
+                with col_load:
+                    st.markdown("<div style='padding-top: 1.5rem;'></div>", unsafe_allow_html=True)
+                    load_from_path = st.button("📂 Load", use_container_width=True, help="โหลดรายการไฟล์จาก path")
+                
+                # แสดงรายการไฟล์ Excel ใน folder
+                if base_folder and os.path.exists(base_folder):
+                    excel_files = [f for f in os.listdir(base_folder) if f.lower().endswith(('.xlsx', '.xls'))]
+                    if excel_files:
+                        st.markdown("**📁 ไฟล์ Excel ใน folder:**")
+                        for idx, file_name in enumerate(sorted(excel_files)):
+                            file_path = os.path.join(base_folder, file_name)
+                            col_file, col_open = st.columns([0.8, 0.2])
+                            with col_file:
+                                st.text(f"📄 {file_name}")
+                            with col_open:
+                                if st.button("Open", key=f"open_file_{idx}", use_container_width=True):
+                                    # โหลดไฟล์โดยตรงจาก path
+                                    try:
+                                        df = pd.read_excel(file_path, sheet_name=0, engine='openpyxl', dtype=str)
+                                        df = df.replace('nan', '')
+                                        if "_chk" not in df.columns: 
+                                            df.insert(0, "_chk", False)
+                                        else: 
+                                            df["_chk"] = df["_chk"].astype(bool)
+                                        
+                                        # Ensure columns exist
+                                        if not find_column_name(df.columns, ["vendor", "code"]): 
+                                            df["Vendor code"] = ""
+                                        if not find_column_name(df.columns, ["vendor", "name"]): 
+                                            df["Vendor Name"] = ""
+                                        
+                                        # เก็บ path ของไฟล์ที่เปิด
+                                        st.session_state.df_data = df
+                                        st.session_state.base_folder_cache = base_folder
+                                        st.session_state.loaded_file_path = file_path
+                                        st.session_state.current_sheet = pd.ExcelFile(file_path).sheet_names[0]
+                                        st.session_state.data_version = 0
+                                        load_vendor_master()
+                                        st.success(f"✅ Loaded: {file_name}")
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Error loading file: {e}")
+                    else:
+                        st.info("📭 ไม่พบไฟล์ Excel ใน folder นี้")
+                elif base_folder:
+                    st.warning(f"⚠️ Path ไม่มีอยู่: {base_folder}")
+            
+            st.markdown("---")
+            st.markdown("**หรือ Upload ไฟล์:**")
             
             # Use container for file uploader to ensure proper event handling
             upload_container = st.container()

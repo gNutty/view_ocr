@@ -2459,16 +2459,22 @@ def render_page_1():
                         
                         # ตรวจสอบว่าเลือก AI OCR แบบไหน
                         if st.session_state.ocr_type == "API Typhoon":
-                            # รัน runocr.bat
-                            bat_file = os.path.join(os.getcwd(), "runocr.bat")
-                            if os.path.exists(bat_file):
+                            # เลือก script ตาม OS (Cross-platform)
+                            if platform.system() == 'Windows':
+                                script_file = os.path.join(os.getcwd(), "runocr.bat")
+                                cmd = [script_file, source_path, output_path, page_config]
+                            else:
+                                script_file = os.path.join(os.getcwd(), "runocr.sh")
+                                cmd = ["bash", script_file, source_path, output_path, page_config]
+                            
+                            if os.path.exists(script_file):
                                 with st.spinner("Running API Typhoon OCR..."):
                                     result = subprocess.run(
-                                        [bat_file, source_path, output_path, page_config],
+                                        cmd,
                                         cwd=os.getcwd(),
                                         capture_output=True,
                                         text=True,
-                                        shell=True
+                                        shell=(platform.system() == 'Windows')
                                     )
                                 
                                 # แสดง output เพื่อ debug
@@ -2486,21 +2492,27 @@ def render_page_1():
                                         st.error("Error details:")
                                         st.code(result.stderr, language="text")
                             else:
-                                st.error(f"runocr.bat not found at: {bat_file}")
+                                st.error(f"OCR script not found at: {script_file}")
                         else:
-                            # รัน runocr_local.bat
-                            bat_file = os.path.join(os.getcwd(), "runocr_local.bat")
-                            if os.path.exists(bat_file):
+                            # เลือก script ตาม OS (Cross-platform) - Local OCR
+                            if platform.system() == 'Windows':
+                                script_file = os.path.join(os.getcwd(), "runocr_local.bat")
+                                cmd = [script_file, source_path, output_path, page_config]
+                            else:
+                                script_file = os.path.join(os.getcwd(), "runocr_local.sh")
+                                cmd = ["bash", script_file, source_path, output_path, page_config]
+                            
+                            if os.path.exists(script_file):
                                 # แสดง spinner และรัน process
                                 spinner_placeholder = st.empty()
                                 with spinner_placeholder.container():
                                     with st.spinner("Running Local Typhoon OCR... This may take a while."):
                                         result = subprocess.run(
-                                            [bat_file, source_path, output_path, page_config],
+                                            cmd,
                                             cwd=os.getcwd(),
                                             capture_output=True,
                                             text=True,
-                                            shell=True
+                                            shell=(platform.system() == 'Windows')
                                         )
                                 
                                 # ลบ spinner หลังจาก process เสร็จ
@@ -2524,7 +2536,7 @@ def render_page_1():
                                     if result.stdout:
                                         st.warning("Check output above for details")
                             else:
-                                st.error(f"runocr_local.bat not found at: {bat_file}")
+                                st.error(f"OCR script not found at: {script_file}")
                     except Exception as e:
                         st.error(f"Error running OCR: {e}")
         

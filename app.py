@@ -547,13 +547,33 @@ def save_excel_local(df, default_name, start_path, header=True):
             error_queue.put(str(e))
             result_queue.put(None)
 
-    # Check if tkinter is available
-    if not HAS_TKINTER:
-        # On Streamlit Cloud, save directly to default path
-        file_path = os.path.join(start_path if start_path and os.path.exists(start_path) else os.getcwd(), default_name)
-        # Continue with save logic (skip dialog)
-        try:
-            if not header:
+    try:
+        # 1) เปิด Save As dialog (หรือใช้ default path ถ้าไม่มี tkinter)
+        if HAS_TKINTER:
+            dialog_thread = threading.Thread(target=_run_save_dialog, daemon=True)
+            dialog_thread.start()
+            dialog_thread.join(timeout=30)  # รอสูงสุด 30 วินาที
+
+            if dialog_thread.is_alive():
+                return False, "Save dialog timed out. Please try again."
+
+            # ตรวจสอบ error
+            try:
+                error = error_queue.get_nowait()
+                return False, f"Error: {error}"
+            except queue.Empty:
+                pass
+
+            # ดึง path ที่ผู้ใช้เลือก
+            file_path = result_queue.get(timeout=1)
+            if not file_path:
+                return False, "Cancelled"
+        else:
+            # On Streamlit Cloud, save directly to default path (skip dialog)
+            file_path = os.path.join(start_path if start_path and os.path.exists(start_path) else os.getcwd(), default_name)
+
+        # 2) ถ้าเป็นงาน Gen SAP (header=False) -> ใช้วิธีเดิม
+        if not header:
             try:
                 df_save = df.drop(columns=["_chk"], errors='ignore')
             except Exception:
@@ -578,6 +598,8 @@ def save_excel_local(df, default_name, start_path, header=True):
         sheet_name = None
         if 'uploaded_file_ref' in st.session_state and st.session_state.uploaded_file_ref is not None:
             orig_file = st.session_state.uploaded_file_ref
+        elif 'loaded_file_path' in st.session_state and st.session_state.loaded_file_path is not None:
+            orig_file = st.session_state.loaded_file_path
         if 'current_sheet' in st.session_state and st.session_state.current_sheet is not None:
             sheet_name = st.session_state.current_sheet
 
@@ -586,7 +608,10 @@ def save_excel_local(df, default_name, start_path, header=True):
             try:
                 if hasattr(orig_file, 'seek'):
                     orig_file.seek(0)
-                wb = load_workbook(orig_file, data_only=False)
+                    wb = load_workbook(orig_file, data_only=False)
+                else:
+                    # It's a file path
+                    wb = load_workbook(orig_file, data_only=False)
             except Exception as e:
                 wb = None
         else:
@@ -707,6 +732,9 @@ def save_excel_local(df, default_name, start_path, header=True):
         # บันทึก workbook ไปยังไฟล์ใหม่
         wb.save(file_path)
         return True, file_path
+
+    except queue.Empty:
+        return False, "Could not get save dialog result. Please try again."
     except Exception as e:
         return False, f"Error saving file: {e}"
 

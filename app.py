@@ -2495,35 +2495,7 @@ def render_page_1():
             elif manual_path != st.session_state.ocr_source_folder:
                 st.session_state.ocr_source_folder = None
         
-        # PDF File Uploader - สำหรับ upload PDF ไปยัง source folder
-        if st.session_state.ocr_source_folder and os.path.exists(st.session_state.ocr_source_folder):
-            st.markdown("**📤 Upload PDF Files:**")
-            uploaded_pdfs = st.file_uploader(
-                "📄 Upload PDF Files to Source Folder",
-                type=['pdf'],
-                accept_multiple_files=True,
-                help=f"Upload PDF files to: {st.session_state.ocr_source_folder}",
-                key="pdf_uploader_ocr"
-            )
-            
-            if uploaded_pdfs:
-                saved_count = 0
-                for uploaded_file in uploaded_pdfs:
-                    try:
-                        # Save to source folder
-                        file_path = os.path.join(st.session_state.ocr_source_folder, uploaded_file.name)
-                        with open(file_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
-                        saved_count += 1
-                    except Exception as e:
-                        st.error(f"❌ Error saving {uploaded_file.name}: {e}")
-                
-                if saved_count > 0:
-                    st.success(f"✅ Saved {saved_count} PDF file(s) to: {st.session_state.ocr_source_folder}")
-                    st.session_state.ocr_file_list_refresh += 1
-                    time.sleep(1)
-                    st.rerun()
-        
+        # Buttons row - ต้องอยู่ก่อน PDF uploader เพื่อให้เห็นปุ่ม
         col_btn1, col_btn2, col_btn3 = st.columns([0.2, 0.2, 0.2])
         
         with col_btn1:

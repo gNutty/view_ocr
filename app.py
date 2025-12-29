@@ -2737,14 +2737,24 @@ def render_page_2():
         if st.session_state.df_data is None:
             # Path settings - เปิด path ได้โดยตรงบน Cloud/Server
             with st.expander("⚙️ ตั้งค่า Path (Advanced)", expanded=True):
-                # กำหนด default path ตาม OS
+                # กำหนด default path ตาม OS และ environment
                 if platform.system() == 'Windows':
                     default_path = r"D:\Project\ocr\output"
                 else:
-                    default_path = os.path.expanduser("~/ocr/output")
+                    # On Linux/Cloud: try common paths
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    # Try output folder in script directory first
+                    output_in_script = os.path.join(script_dir, "output")
+                    if os.path.exists(output_in_script):
+                        default_path = output_in_script
+                    elif os.path.exists("/mount/src/view_ocr/output"):
+                        default_path = "/mount/src/view_ocr/output"  # Streamlit Cloud
+                    else:
+                        default_path = os.path.join(script_dir, "output")  # Use script directory
                 
                 if not os.path.exists(default_path): 
-                    default_path = os.getcwd()
+                    # Fallback to script directory
+                    default_path = os.path.dirname(os.path.abspath(__file__))
                 
                 col_path, col_load = st.columns([0.85, 0.15])
                 with col_path:

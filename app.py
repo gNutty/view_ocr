@@ -359,7 +359,7 @@ def save_config(api_key, poppler_path=None):
 
 # --- Session State Initialization ---
 if 'current_page' not in st.session_state:
-    st.session_state.current_page = "Page 2: Document Editor"
+    st.session_state.current_page = "Page 1: AI OCR Dashboard"
 
 # Page 1 State
 if 'ocr_source_folder' not in st.session_state:

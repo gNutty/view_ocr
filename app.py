@@ -804,20 +804,13 @@ def save_txt_local(df, default_name, start_path, delimiter='\t'):
         except Exception as e:
             return False, f"Error: {e}"
 
-    # 2) บันทึกไฟล์
-
-        # 2) บันทึก DataFrame เป็นไฟล์ .txt
-        try:
-            # ใช้ delimiter ที่กำหนด (default: tab)
-            df.to_csv(file_path, sep=delimiter, index=False, header=False, encoding='utf-8')
-            return True, file_path
-        except Exception as e:
-            return False, f"Error saving text file: {e}"
-
-    except queue.Empty:
-        return False, "Could not get save dialog result. Please try again."
+    # 2) บันทึก DataFrame เป็นไฟล์ .txt
+    try:
+        # ใช้ delimiter ที่กำหนด (default: tab)
+        df.to_csv(file_path, sep=delimiter, index=False, header=False, encoding='utf-8')
+        return True, file_path
     except Exception as e:
-        return False, f"Error saving file: {e}"
+        return False, f"Error saving text file: {e}"
 
 def find_text_bbox_in_pdf(pdf_path, search_text, page_num, field_name=None):
     """

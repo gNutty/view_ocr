@@ -49,9 +49,21 @@ CONFIG_FILE = "config.json"
 def get_default_output_path():
     """Get default output path based on operating system"""
     if platform.system() == 'Windows':
-        return r"D:\Project\ocr\output"
+        output_path = r"D:\Project\ocr\output"
+        os.makedirs(output_path, exist_ok=True)
+        return output_path
     else:
-        return os.path.expanduser("~/ocr/output")
+        # On Linux/Cloud: use script directory or /mount/src/view_ocr
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        # Try /mount/src/view_ocr/output (Streamlit Cloud)
+        if os.path.exists("/mount/src/view_ocr"):
+            output_path = "/mount/src/view_ocr/output"
+            os.makedirs(output_path, exist_ok=True)
+            return output_path
+        # Otherwise use output folder in script directory
+        output_path = os.path.join(script_dir, "output")
+        os.makedirs(output_path, exist_ok=True)
+        return output_path
 
 def get_default_poppler_path():
     """Get Poppler path based on operating system"""

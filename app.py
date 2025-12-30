@@ -54,17 +54,22 @@ def get_default_output_path():
         os.makedirs(output_path, exist_ok=True)
         return output_path
     else:
-        # On Linux/Cloud: use script directory or /mount/src/view_ocr
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        # Try /mount/src/view_ocr/output (Streamlit Cloud)
-        if os.path.exists("/mount/src/view_ocr"):
-            output_path = "/mount/src/view_ocr/output"
-            os.makedirs(output_path, exist_ok=True)
-            return output_path
-        # Otherwise use output folder in script directory
-        output_path = os.path.join(script_dir, "output")
+        # On Linux/Cloud: use /mount/src/view_ocr/output (Streamlit Cloud)
+        output_path = "/mount/src/view_ocr/output"
         os.makedirs(output_path, exist_ok=True)
         return output_path
+
+def get_default_source_path():
+    """Get default source path based on operating system"""
+    if platform.system() == 'Windows':
+        source_path = r"D:\Project\ocr\source"
+        os.makedirs(source_path, exist_ok=True)
+        return source_path
+    else:
+        # On Linux/Cloud: use /mount/src/view_ocr/source (Streamlit Cloud)
+        source_path = "/mount/src/view_ocr/source"
+        os.makedirs(source_path, exist_ok=True)
+        return source_path
 
 def get_default_poppler_path():
     """Get Poppler path based on operating system"""
@@ -364,7 +369,7 @@ if 'current_page' not in st.session_state:
 
 # Page 1 State
 if 'ocr_source_folder' not in st.session_state:
-    st.session_state.ocr_source_folder = None
+    st.session_state.ocr_source_folder = get_default_source_path()
 if 'ocr_output_folder' not in st.session_state:
     st.session_state.ocr_output_folder = DEFAULT_OUTPUT_PATH
 if 'ocr_file_list_refresh' not in st.session_state:
@@ -2474,7 +2479,7 @@ def render_page_1():
         # Add text input for manual path entry
         manual_path = st.text_input(
             "Source Folder Path:",
-            value=st.session_state.ocr_source_folder if st.session_state.ocr_source_folder else r"D:\Project\ocr\source",
+            value=st.session_state.ocr_source_folder if st.session_state.ocr_source_folder else get_default_source_path(),
             help="Enter folder path manually or use 📁 button to browse",
             key="source_folder_input"
         )
@@ -2784,24 +2789,8 @@ def render_page_2():
         if st.session_state.df_data is None:
             # Path settings - เปิด path ได้โดยตรงบน Cloud/Server
             with st.expander("⚙️ ตั้งค่า Path (Advanced)", expanded=True):
-                # กำหนด default path ตาม OS และ environment
-                if platform.system() == 'Windows':
-                    default_path = r"D:\Project\ocr\output"
-                else:
-                    # On Linux/Cloud: try common paths
-                    script_dir = os.path.dirname(os.path.abspath(__file__))
-                    # Try output folder in script directory first
-                    output_in_script = os.path.join(script_dir, "output")
-                    if os.path.exists(output_in_script):
-                        default_path = output_in_script
-                    elif os.path.exists("/mount/src/view_ocr/output"):
-                        default_path = "/mount/src/view_ocr/output"  # Streamlit Cloud
-                    else:
-                        default_path = os.path.join(script_dir, "output")  # Use script directory
-                
-                if not os.path.exists(default_path): 
-                    # Fallback to script directory
-                    default_path = os.path.dirname(os.path.abspath(__file__))
+                # ใช้ค่าเริ่มต้นจาก get_default_output_path()
+                default_path = get_default_output_path()
                 
                 col_path, col_load = st.columns([0.85, 0.15])
                 with col_path:

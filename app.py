@@ -411,7 +411,7 @@ if 'base_folder_cache' not in st.session_state:
 if 'loaded_file_path' not in st.session_state:
     st.session_state.loaded_file_path = None
 if 'doc_editor_path' not in st.session_state:
-    st.session_state.doc_editor_path = None
+    st.session_state.doc_editor_path = get_default_output_path()
 if 'vendor_master_df' not in st.session_state: 
     st.session_state.vendor_master_df = None
 if 'data_version' not in st.session_state: 

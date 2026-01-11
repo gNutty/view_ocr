@@ -42,20 +42,271 @@ if not API_KEY:
 # Script directory for relative paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 VENDOR_MASTER_FILE = "Vendor_branch.xlsx"
+TEMPLATES_FILE = "document_templates.json"
 
 # Command line arguments or defaults
+# Usage: python Extract_Inv.py <source_dir> <output_dir> <page_config> [document_type]
 if len(sys.argv) >= 3:
     SOURCE_DIR = sys.argv[1]
     OUTPUT_DIR = sys.argv[2]
     PAGE_CONFIG = sys.argv[3] if len(sys.argv) > 3 else "All"
+    DOC_TYPE = sys.argv[4] if len(sys.argv) > 4 else "auto"
 else:
     SOURCE_DIR = get_default_source_dir()
     OUTPUT_DIR = get_default_output_dir()
     PAGE_CONFIG = "2"
+    DOC_TYPE = "auto"
 
 # Create output directory if not exists
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
+
+
+# --- Load Document Templates ---
+def load_templates():
+    """Load document templates from JSON file"""
+    path = os.path.join(SCRIPT_DIR, TEMPLATES_FILE)
+    if not os.path.exists(path):
+        print(f"Warning: Templates file not found: {TEMPLATES_FILE}")
+        return None
+    
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading templates: {e}")
+        return None
+
+
+def detect_document_type(text, templates):
+    """Auto-detect document type based on keywords in text"""
+    if not text or not templates:
+        return "invoice"  # default
+    
+    text_lower = text.lower()
+    scores = {}
+    
+    for doc_type, template in templates.get("templates", {}).items():
+        keywords = template.get("detect_keywords", [])
+        score = 0
+        for keyword in keywords:
+            if keyword.lower() in text_lower:
+                score += 1
+        if score > 0:
+            scores[doc_type] = score
+    
+    if scores:
+        # Return type with highest score
+        return max(scores, key=scores.get)
+    
+    return "invoice"  # default fallback
+
+
+def extract_field_by_patterns(text, patterns, options=None):
+    """Extract field value using multiple regex patterns"""
+    if not text or not patterns:
+        return ""
+    
+    options = options or {}
+    
+    for pattern in patterns:
+        try:
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                # Get first capturing group or full match
+                value = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                
+                # Clean HTML if specified
+                if options.get("clean_html"):
+                    value = re.sub(r'<br\s*/?>', ' ', value)
+                    value = re.sub(r'<[^>]+>', '', value)
+                
+                # Clean whitespace
+                value = re.sub(r'[\r\n]+', ' ', value)
+                value = re.sub(r'\s+', ' ', value).strip()
+                
+                # Clean non-digits if specified
+                if options.get("clean_non_digits"):
+                    value = re.sub(r'\D', '', value)
+                    # Truncate to specified length
+                    if options.get("length"):
+                        value = value[:options["length"]]
+                
+                if value:
+                    return value
+        except Exception:
+            continue
+    
+    return ""
+
+
+def extract_common_fields(text, common_fields_config):
+    """Extract common fields (tax_id, branch) that apply to all document types"""
+    result = {"tax_id": "", "branch": ""}
+    
+    if not text or not common_fields_config:
+        return result
+    
+    # Extract Tax ID
+    tax_config = common_fields_config.get("tax_id", {})
+    tax_patterns = tax_config.get("patterns", [])
+    
+    # First try to find 13-digit number directly
+    all_tax_ids = re.findall(r"\b(\d{13})\b", text)
+    if all_tax_ids:
+        result["tax_id"] = all_tax_ids[0]
+    else:
+        # Try pattern with dashes
+        tax_pattern_match = re.search(r"\b\d{1}-\d{4}-\d{5}-\d{2}-\d{1}\b", text)
+        if tax_pattern_match:
+            result["tax_id"] = re.sub(r"\D", "", tax_pattern_match.group(0))
+        else:
+            # Try keyword-based extraction
+            for pattern in tax_patterns:
+                value = extract_field_by_patterns(text, [pattern], {"clean_non_digits": True, "length": 13})
+                if value and len(value) >= 10:
+                    result["tax_id"] = value
+                    break
+    
+    # Extract Branch
+    branch_config = common_fields_config.get("branch", {})
+    branch_patterns = branch_config.get("patterns", [])
+    default_hq = branch_config.get("default_hq", "00000")
+    pad_zeros = branch_config.get("pad_zeros", 5)
+    
+    # Check for Head Office keywords first
+    ho_match = re.search(r"(?:สำนักงานใหญ่|สนญ\.?|Head\s*Office|H\.?O\.?)", text, re.IGNORECASE)
+    if ho_match:
+        result["branch"] = default_hq
+    else:
+        # Try to find branch number
+        branch_match = re.search(r"(?:สาขา(?:ที่)?|Branch(?:\s*No\.?)?)\s*[:\.]?\s*(\d{1,5})", text, re.IGNORECASE)
+        if branch_match:
+            result["branch"] = branch_match.group(1).zfill(pad_zeros)
+    
+    return result
+
+
+def parse_ocr_data_with_template(text, templates, doc_type="auto"):
+    """Parse OCR text using document template patterns"""
+    result = {
+        "document_type": "",
+        "document_type_name": "",
+        "document_no": "",
+        "date": "",
+        "amount": "",
+        "tax_id": "",
+        "branch": "",
+        "extra_fields": {}
+    }
+    
+    if not text:
+        return result
+    
+    # Load templates if not provided
+    if not templates:
+        templates = load_templates()
+    
+    if not templates:
+        # Fallback to basic extraction
+        return parse_ocr_data_basic(text)
+    
+    # Detect or use specified document type
+    if doc_type == "auto":
+        detected_type = detect_document_type(text, templates)
+    else:
+        detected_type = doc_type if doc_type in templates.get("templates", {}) else "invoice"
+    
+    result["document_type"] = detected_type
+    
+    # Get template for this document type
+    template = templates.get("templates", {}).get(detected_type, {})
+    result["document_type_name"] = template.get("name", detected_type)
+    
+    # Extract common fields (tax_id, branch) - always extracted for Vendor lookup
+    common_fields = templates.get("common_fields", {})
+    common_result = extract_common_fields(text, common_fields)
+    result["tax_id"] = common_result["tax_id"]
+    result["branch"] = common_result["branch"]
+    
+    # Extract template-specific fields
+    fields_config = template.get("fields", {})
+    
+    for field_name, field_config in fields_config.items():
+        patterns = field_config.get("patterns", [])
+        options = {
+            "clean_html": field_config.get("clean_html", False),
+            "clean_non_digits": field_config.get("clean_non_digits", False),
+            "length": field_config.get("length")
+        }
+        
+        value = extract_field_by_patterns(text, patterns, options)
+        
+        # Handle fallback for amount fields
+        if not value and field_config.get("fallback") == "last_amount":
+            amounts = re.findall(r"([\d,]+\.\d{2})", text)
+            value = amounts[-1] if amounts else ""
+        
+        # Store in appropriate location
+        if field_name in ["document_no", "date", "amount"]:
+            result[field_name] = value
+        else:
+            result["extra_fields"][field_name] = value
+    
+    return result
+
+
+def parse_ocr_data_basic(text):
+    """Basic OCR parsing without templates (fallback)"""
+    result = {
+        "document_type": "invoice",
+        "document_type_name": "ใบกำกับภาษี/Invoice",
+        "document_no": "",
+        "date": "",
+        "amount": "",
+        "tax_id": "",
+        "branch": "",
+        "extra_fields": {}
+    }
+    
+    if not text:
+        return result
+    
+    # Document number
+    inv_match = re.search(r"เลขที่\s*[:\.]?\s*([A-Za-z0-9\-\/]{3,})", text)
+    result["document_no"] = inv_match.group(1) if inv_match else ""
+    
+    # Date
+    date_match = re.search(r"วันที่\s*[:\.]?\s*(\d{1,2}\s+[^\s]+\s+\d{4}|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})", text)
+    result["date"] = date_match.group(1) if date_match else ""
+    
+    # Amount
+    amount_match = re.search(r"(?:จำนวนเงินรวมทั้งสิ้น|รวมเงินทั้งสิ้น|GRAND TOTAL)\s*[:\.]?\s*([\d,]+\.\d{2})", text, re.IGNORECASE)
+    if amount_match:
+        result["amount"] = amount_match.group(1)
+    else:
+        amounts = re.findall(r"([\d,]+\.\d{2})", text)
+        result["amount"] = amounts[-1] if amounts else ""
+    
+    # Tax ID
+    all_tax_ids = re.findall(r"\b(\d{13})\b", text)
+    if all_tax_ids:
+        result["tax_id"] = all_tax_ids[0]
+    else:
+        tax_pattern_match = re.search(r"\b\d{1}-\d{4}-\d{5}-\d{2}-\d{1}\b", text)
+        if tax_pattern_match:
+            result["tax_id"] = re.sub(r"\D", "", tax_pattern_match.group(0))
+    
+    # Branch
+    ho_match = re.search(r"(?:สำนักงานใหญ่|สนญ\.?|Head\s*Office|H\.?O\.?)", text, re.IGNORECASE)
+    if ho_match:
+        result["branch"] = "00000"
+    else:
+        branch_match = re.search(r"(?:สาขา(?:ที่)?|Branch(?:\s*No\.?)?)\s*[:\.]?\s*(\d{1,5})", text, re.IGNORECASE)
+        if branch_match:
+            result["branch"] = branch_match.group(1).zfill(5)
+    
+    return result
 
 
 # --- Load Vendor Master (Excel) ---
@@ -86,7 +337,12 @@ def load_vendor_master():
         
         df['สาขา'] = df['สาขา'].apply(clean_branch)
         
-        return df[['เลขประจำตัวผู้เสียภาษี', 'สาขา', 'Vendor code SAP']]
+        # Also get company name if available
+        cols_to_return = ['เลขประจำตัวผู้เสียภาษี', 'สาขา', 'Vendor code SAP']
+        if 'ชื่อบริษัท' in df.columns:
+            cols_to_return.append('ชื่อบริษัท')
+        
+        return df[cols_to_return]
         
     except Exception as e:
         print(f"Error reading Vendor file: {e}")
@@ -167,161 +423,24 @@ def extract_text_from_image(file_path, api_key, pages_list):
         return None
 
 
-# --- Extract additional fields ---
-def extract_additional_fields(text):
-    """Extract additional fields from OCR text"""
-    result = {
-        'description': '',
-        'sales_promotion': '',
-        'total_amount': '',
-        'withholding_tax': ''
-    }
-    
-    if not text:
-        return result
-    
-    # Extract description from HTML table
-    description = ""
-    
-    if '<td>1</td><td>' in text:
-        parts = text.split('<td>1</td><td>')
-        if len(parts) > 1:
-            after_item = parts[1]
-            if '</td>' in after_item:
-                description = after_item.split('</td>')[0]
-    
-    if not description:
-        import re as regex_module
-        match = regex_module.search(r'<td>(\d+)</td><td>(.+?)</td>', text, regex_module.DOTALL)
-        if match:
-            description = match.group(2)
-    
-    if description:
-        description = re.sub(r'<br\s*/?>', ' ', description)
-        description = re.sub(r'[\r\n]+', ' ', description)
-        description = re.sub(r'<[^>]+>', '', description)
-        description = re.sub(r'\s+', ' ', description).strip()
-        
-        if len(description) > 5:
-            result['description'] = description
-    
-    # Sales promotion patterns
-    sales_promo_patterns = [
-        r'หมายเหตุ[^\n]*(?:\n|\r\n|\r)\s*(ค่าส่งเสริมการขาย[^\n]*)',
-        r'ค่าส่งเสริมการขาย\s+(\d+%?\s*(?:จากยอด)?\s*[\d,]+\.?\d*)',
-        r'ค่าส่งเสริมการขาย[^\d]*(?:\d+%?[^\n]*(?:จากยอด)?\s*[\d,]+\.?\d*)',
-        r'ค่าส่งเสริมการขาย[^\n]+',
-    ]
-    
-    for pattern in sales_promo_patterns:
-        sales_match = re.search(pattern, text, re.IGNORECASE)
-        if sales_match:
-            sales_promo = sales_match.group(1) if sales_match.lastindex and sales_match.lastindex >= 1 else sales_match.group(0)
-            sales_promo = re.sub(r'[\r\n]+', ' ', sales_promo)
-            sales_promo = re.sub(r'\s+', ' ', sales_promo).strip()
-            if sales_promo:
-                result['sales_promotion'] = sales_promo
-                break
-    
-    # Total amount patterns
-    total_patterns = [
-        r'รวมภาษีมูลค่าเพิ่ม\s*[:\.]?\s*([\d,]+\.\d{2})',
-        r'รวม\s*ภาษีมูลค่าเพิ่ม[^\d]*([\d,]+\.\d{2})',
-        r'รวมภาษีมูลค่าเพิ่ม[^\n]*(?:\n|\\n)\s*([\d,]+\.\d{2})',
-    ]
-    
-    for pattern in total_patterns:
-        total_match = re.search(pattern, text, re.IGNORECASE)
-        if total_match:
-            total_amount = total_match.group(1)
-            if total_amount:
-                result['total_amount'] = total_amount
-                break
-    
-    # Withholding tax patterns
-    withholding_patterns = [
-        r'หัก\s+ณ\s+ที่จ่าย\s*[:\.]?\s*([\d,]+\.\d{2})',
-        r'หัก\s*ณ\s*ที่จ่าย[^\d]*([\d,]+\.\d{2})',
-        r'หัก\s*ณ\s*ที่จ่าย[^\n]*(?:\n|\\n)\s*([\d,]+\.\d{2})',
-    ]
-    
-    for pattern in withholding_patterns:
-        withholding_match = re.search(pattern, text, re.IGNORECASE)
-        if withholding_match:
-            withholding_tax = withholding_match.group(1)
-            if withholding_tax:
-                result['withholding_tax'] = withholding_tax
-                break
-    
-    return result
-
-
-# --- Parse OCR data ---
-def parse_ocr_data(text):
-    """Parse OCR text to extract structured data"""
-    if not text:
-        return None, None, None, None, None, None, None, None, None
-
-    inv_match = re.search(r"เลขที่\s*[:\.]?\s*([A-Za-z0-9\-\/]{3,})", text)
-    invoice_no = inv_match.group(1) if inv_match else ""
-
-    date_match = re.search(r"วันที่\s*[:\.]?\s*(\d{1,2}\s+[^\s]+\s+\d{4}|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})", text)
-    bill_date = date_match.group(1) if date_match else ""
-
-    amount_match = re.search(r"(?:จำนวนเงินรวมทั้งสิ้น|รวมเงินทั้งสิ้น|GRAND TOTAL)\s*[:\.]?\s*([\d,]+\.\d{2})", text, re.IGNORECASE)
-    if amount_match:
-        amount = amount_match.group(1)
-    else:
-        amounts = re.findall(r"([\d,]+\.\d{2})", text)
-        amount = amounts[-1] if amounts else ""
-
-    # Tax ID
-    tax_id = ""
-    all_tax_ids = re.findall(r"\b(\d{13})\b", text)
-    
-    if all_tax_ids:
-        tax_id = all_tax_ids[0]
-    else:
-        tax_pattern_match = re.search(r"\b\d{1}-\d{4}-\d{5}-\d{2}-\d{1}\b", text)
-        if tax_pattern_match:
-            tax_id = re.sub(r"\D", "", tax_pattern_match.group(0))
-        else:
-            tax_keyword_match = re.search(r"(?:เลข(?:ที่)?(?:ประจำตัว)?ผู้เสียภาษี(?:อากร)?|Tax\s*ID|Tax\s*No\.?|เลขทะเบียนนิติบุคคล)\s*[:\.]?\s*([0-9\-\s]{10,25})", text, re.IGNORECASE)
-            if tax_keyword_match:
-                clean_tax = re.sub(r"\D", "", tax_keyword_match.group(1))
-                if len(clean_tax) >= 10:
-                    tax_id = clean_tax[:13] if len(clean_tax) >= 13 else clean_tax
-
-    # Branch ID
-    branch_id = ""
-    ho_match = re.search(r"(?:สำนักงานใหญ่|สนญ\.?|Head\s*Office|H\.?O\.?)", text, re.IGNORECASE)
-    if ho_match:
-        branch_id = "00000"
-    else:
-        branch_match = re.search(r"(?:สาขา(?:ที่)?|Branch(?:\s*No\.?)?)\s*[:\.]?\s*(\d{1,5})", text, re.IGNORECASE)
-        if branch_match:
-            branch_id = branch_match.group(1).zfill(5)
-    
-    # Additional fields
-    additional_fields = extract_additional_fields(text)
-    description = additional_fields['description']
-    sales_promotion = additional_fields['sales_promotion']
-    total_amount = additional_fields['total_amount']
-    withholding_tax = additional_fields['withholding_tax']
-
-    return invoice_no, bill_date, amount, tax_id, branch_id, description, sales_promotion, total_amount, withholding_tax
-
-
 # --- Main Logic ---
 def main():
-    print(f"--- Start Processing (Mode: {PAGE_CONFIG}) ---")
+    print(f"--- Start Processing ---")
     print(f"Platform: {platform.system()} {platform.release()}")
     print(f"Source: {SOURCE_DIR}")
     print(f"Output: {OUTPUT_DIR}")
+    print(f"Page Config: {PAGE_CONFIG}")
+    print(f"Document Type: {DOC_TYPE}")
     
     if not API_KEY:
         print("[ERROR] API Key not set. Please set TYPHOON_API_KEY environment variable or update config.json")
         return
+    
+    # Load templates
+    templates = load_templates()
+    if templates:
+        available_types = list(templates.get("templates", {}).keys())
+        print(f"Loaded templates: {available_types}")
     
     # Load Vendor Master
     vendor_df = load_vendor_master()
@@ -340,7 +459,7 @@ def main():
 
     for filename in files:
         file_path = os.path.join(SOURCE_DIR, filename)
-        print(f"Processing: {filename}")
+        print(f"\nProcessing: {filename}")
 
         try:
             reader = PdfReader(file_path)
@@ -353,27 +472,37 @@ def main():
                 page_text = extract_text_from_image(file_path, API_KEY, pages_list=[page_num])
                 
                 if page_text:
+                    # Save raw OCR text
                     txt_filename = f"{os.path.splitext(filename)[0]}_page{page_num}.txt"
                     txt_path = os.path.join(OUTPUT_DIR, txt_filename)
                     with open(txt_path, 'w', encoding='utf-8') as f:
                         f.write(page_text)
                     
-                    invoice, date_val, money, tax_id_val, branch_val, description, sales_promotion, total_amount, withholding_tax = parse_ocr_data(page_text)
+                    # Parse using templates
+                    parsed = parse_ocr_data_with_template(page_text, templates, DOC_TYPE)
+                    
+                    print(f"      Detected Type: {parsed['document_type_name']}")
+                    
                     hyperlink_formula = f'=HYPERLINK("{file_path}", "{filename} (Page {page_num})")'
 
-                    data_rows.append({
+                    row_data = {
                         "Link PDF": hyperlink_formula,
                         "Page": page_num,
-                        "VendorID_OCR": tax_id_val,
-                        "Branch_OCR": branch_val,
-                        "Invoice No": invoice,
-                        "Date": date_val,
-                        "Amount": money,
-                        "Description": description,
-                        "Sales Promotion": sales_promotion,
-                        "Total Amount": total_amount,
-                        "Withholding Tax": withholding_tax
-                    })
+                        "Document Type": parsed["document_type_name"],
+                        "VendorID_OCR": parsed["tax_id"],
+                        "Branch_OCR": parsed["branch"],
+                        "Document No": parsed["document_no"],
+                        "Date": parsed["date"],
+                        "Amount": parsed["amount"],
+                    }
+                    
+                    # Add extra fields from template
+                    for field_name, value in parsed.get("extra_fields", {}).items():
+                        # Convert field_name to readable label
+                        label = field_name.replace("_", " ").title()
+                        row_data[label] = value
+                    
+                    data_rows.append(row_data)
                 else:
                     print(f"      Warning: Failed to read page {page_num}")
 
@@ -385,7 +514,7 @@ def main():
         df = pd.DataFrame(data_rows)
         
         if vendor_df is not None:
-            print("Mapping Vendor Code...")
+            print("\nMapping Vendor Code...")
             df = pd.merge(
                 df, 
                 vendor_df, 
@@ -398,14 +527,18 @@ def main():
         else:
             df['Vendor code'] = ""
 
-        columns_order = [
-            "Link PDF", "Page", 
-            "VendorID_OCR", "Branch_OCR", "Vendor code", 
-            "Invoice No", "Date", "Amount",
-            "Description", "Sales Promotion", "Total Amount", "Withholding Tax"
+        # Reorder columns - put important ones first
+        priority_cols = [
+            "Link PDF", "Page", "Document Type",
+            "VendorID_OCR", "Branch_OCR", "Vendor code", "ชื่อบริษัท",
+            "Document No", "Date", "Amount"
         ]
         
-        final_cols = [col for col in columns_order if col in df.columns]
+        # Get all columns, prioritizing the defined order
+        all_cols = df.columns.tolist()
+        final_cols = [col for col in priority_cols if col in all_cols]
+        final_cols += [col for col in all_cols if col not in final_cols]
+        
         df = df[final_cols]
 
         output_excel_path = os.path.join(OUTPUT_DIR, "summary_ocr.xlsx")
@@ -413,7 +546,8 @@ def main():
         try:
             with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Sheet1')
-            print(f"Success! Output saved at: {output_excel_path}")
+            print(f"\nSuccess! Output saved at: {output_excel_path}")
+            print(f"Total rows: {len(df)}")
         except Exception as e:
             print(f"Error saving Excel: {e}")
     else:

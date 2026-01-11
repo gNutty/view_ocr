@@ -384,6 +384,8 @@ if 'show_settings' not in st.session_state:
     st.session_state.show_settings = False
 if 'ocr_type' not in st.session_state:
     st.session_state.ocr_type = "API Typhoon"  # Default: API Typhoon
+if 'ocr_doc_type' not in st.session_state:
+    st.session_state.ocr_doc_type = "auto"  # Default: Auto Detect document type
 config_data = load_config()
 if 'api_key' not in st.session_state:
     # โหลด API_KEY จาก config file
@@ -2312,6 +2314,21 @@ def render_page_1():
             st.caption("🔵 API OCR")
         else:
             st.caption("🟢 Local OCR")
+        
+        # แสดงประเภทเอกสารที่เลือก
+        doc_type_labels = {
+            "auto": "🔍 Auto",
+            "invoice": "📄 Invoice",
+            "receipt": "🧾 Receipt",
+            "purchase_order": "📋 PO",
+            "delivery_note": "📦 DN",
+            "credit_note": "💳 CN",
+            "debit_note": "📝 Debit",
+            "quotation": "💼 Quote",
+            "custom": "⚙️ Custom"
+        }
+        doc_label = doc_type_labels.get(st.session_state.ocr_doc_type, "🔍 Auto")
+        st.caption(f"Doc: {doc_label}")
         st.markdown("</div>", unsafe_allow_html=True)
     
     # Settings Dialog
@@ -2334,6 +2351,36 @@ def render_page_1():
             if ocr_type != st.session_state.ocr_type:
                 st.session_state.ocr_type = ocr_type
                 st.rerun()
+            
+            st.markdown("---")
+            
+            # Document Type Selection
+            st.markdown("### Document Type")
+            doc_type_options = {
+                "auto": "🔍 Auto Detect",
+                "invoice": "📄 ใบกำกับภาษี/Invoice",
+                "receipt": "🧾 ใบเสร็จรับเงิน/Receipt",
+                "purchase_order": "📋 ใบสั่งซื้อ/PO",
+                "delivery_note": "📦 ใบส่งของ/DN",
+                "credit_note": "💳 ใบลดหนี้/CN",
+                "debit_note": "📝 ใบเพิ่มหนี้",
+                "quotation": "💼 ใบเสนอราคา",
+                "custom": "⚙️ อื่นๆ/Custom"
+            }
+            
+            current_doc_type_idx = list(doc_type_options.keys()).index(st.session_state.ocr_doc_type) if st.session_state.ocr_doc_type in doc_type_options else 0
+            
+            doc_type = st.selectbox(
+                "ประเภทเอกสาร:",
+                options=list(doc_type_options.keys()),
+                index=current_doc_type_idx,
+                format_func=lambda x: doc_type_options[x],
+                key="doc_type_selector",
+                help="เลือกประเภทเอกสารเพื่อใช้ regex patterns ที่เหมาะสม หรือเลือก Auto Detect ให้ระบบตรวจจับอัตโนมัติ"
+            )
+            
+            if doc_type != st.session_state.ocr_doc_type:
+                st.session_state.ocr_doc_type = doc_type
             
             st.markdown("---")
             
@@ -2414,6 +2461,25 @@ def render_page_1():
                 - ต้องติดตั้ง Poppler สำหรับแปลง PDF เป็น Image
                 - รันผ่าน `Extract_Inv_local.py`
                 - ทำงานได้ออฟไลน์ ไม่ต้องเชื่อมต่ออินเทอร์เน็ต
+            """)
+            
+            st.markdown("---")
+            st.markdown("### Document Type Templates")
+            st.info("""
+                **ประเภทเอกสารที่รองรับ:**
+                
+                - 📄 **Invoice** - ใบกำกับภาษี
+                - 🧾 **Receipt** - ใบเสร็จรับเงิน
+                - 📋 **PO** - ใบสั่งซื้อ
+                - 📦 **DN** - ใบส่งของ
+                - 💳 **CN** - ใบลดหนี้
+                - 📝 **Debit Note** - ใบเพิ่มหนี้
+                - 💼 **Quotation** - ใบเสนอราคา
+                
+                เลือก **Auto Detect** เพื่อให้ระบบตรวจจับประเภทอัตโนมัติ
+                หรือเลือกประเภทเฉพาะเพื่อใช้ regex patterns ที่เหมาะสม
+                
+                แก้ไข patterns ได้ที่ไฟล์ `document_templates.json`
             """)
     
     # Page selection UI based on selected mode - on right side (half screen) below selectbox
@@ -2530,7 +2596,8 @@ def render_page_1():
                             
                             if os.path.exists(python_script):
                                 # ใช้ sys.executable เพื่อให้ใช้ Python ที่ติดตั้ง packages แล้ว
-                                cmd = [sys.executable, python_script, source_path, output_path, page_config]
+                                doc_type = st.session_state.ocr_doc_type
+                                cmd = [sys.executable, python_script, source_path, output_path, page_config, doc_type]
                                 
                                 with st.spinner("Running API Typhoon OCR..."):
                                     result = subprocess.run(
@@ -2562,7 +2629,8 @@ def render_page_1():
                             
                             if os.path.exists(python_script):
                                 # ใช้ sys.executable เพื่อให้ใช้ Python ที่ติดตั้ง packages แล้ว
-                                cmd = [sys.executable, python_script, source_path, output_path, page_config]
+                                doc_type = st.session_state.ocr_doc_type
+                                cmd = [sys.executable, python_script, source_path, output_path, page_config, doc_type]
                                 
                                 # แสดง spinner และรัน process
                                 spinner_placeholder = st.empty()

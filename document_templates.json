@@ -1,0 +1,456 @@
+{
+  "version": "1.0",
+  "description": "Document extraction templates for OCR processing",
+  "templates": {
+    "invoice": {
+      "name": "ใบกำกับภาษี/Invoice",
+      "name_en": "Tax Invoice",
+      "detect_keywords": ["ใบกำกับภาษี", "TAX INVOICE", "ใบแจ้งหนี้", "INVOICE"],
+      "fields": {
+        "document_no": {
+          "label": "Invoice No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Invoice\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{4,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}\\s+[ก-๙]+\\s+\\d{4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [
+            "จำนวนเงินรวมทั้งสิ้น\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "รวมเงินทั้งสิ้น\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "GRAND\\s*TOTAL\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "fallback": "last_amount"
+        },
+        "total_amount": {
+          "label": "Total Amount",
+          "patterns": [
+            "รวมภาษีมูลค่าเพิ่ม\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "รวม\\s*ภาษีมูลค่าเพิ่ม[^\\d]*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false
+        },
+        "withholding_tax": {
+          "label": "Withholding Tax",
+          "patterns": [
+            "หัก\\s*ณ\\s*ที่จ่าย\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "หัก\\s+ณ\\s+ที่จ่าย[^\\d]*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false
+        },
+        "description": {
+          "label": "Description",
+          "patterns": [
+            "<td>1</td><td>(.+?)</td>",
+            "จำนวนเงิน\\s+1\\s+(.+?)(?=\\s+[\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "clean_html": true
+        },
+        "sales_promotion": {
+          "label": "Sales Promotion",
+          "patterns": [
+            "ค่าส่งเสริมการขาย[^\\n]+",
+            "หมายเหตุ[^\\n]*(?:\\n|\\r\\n|\\r)\\s*(ค่าส่งเสริมการขาย[^\\n]*)"
+          ],
+          "required": false
+        }
+      }
+    },
+    "receipt": {
+      "name": "ใบเสร็จรับเงิน",
+      "name_en": "Receipt",
+      "detect_keywords": ["ใบเสร็จรับเงิน", "RECEIPT", "ใบรับเงิน", "OFFICIAL RECEIPT"],
+      "fields": {
+        "document_no": {
+          "label": "Receipt No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Receipt\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "เลขที่ใบเสร็จ\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}\\s+[ก-๙]+\\s+\\d{4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [
+            "จำนวนเงิน\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "รวมเงิน\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "ยอดรวม\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "Total\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "fallback": "last_amount"
+        },
+        "payment_method": {
+          "label": "Payment Method",
+          "patterns": [
+            "ชำระโดย\\s*[:\\.]?\\s*([^\\n]+)",
+            "วิธีชำระ\\s*[:\\.]?\\s*([^\\n]+)",
+            "Payment\\s*[:\\.]?\\s*([^\\n]+)"
+          ],
+          "required": false
+        },
+        "description": {
+          "label": "Description",
+          "patterns": [
+            "รายการ\\s*[:\\.]?\\s*([^\\n]+)",
+            "สำหรับ\\s*[:\\.]?\\s*([^\\n]+)"
+          ],
+          "required": false
+        }
+      }
+    },
+    "purchase_order": {
+      "name": "ใบสั่งซื้อ",
+      "name_en": "Purchase Order",
+      "detect_keywords": ["ใบสั่งซื้อ", "PURCHASE ORDER", "P/O", "PO NO"],
+      "fields": {
+        "document_no": {
+          "label": "PO No",
+          "patterns": [
+            "PO\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "P\\/O\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "เลขที่ใบสั่งซื้อ\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "PO\\s*Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [
+            "รวมเงินทั้งสิ้น\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "Total\\s*Amount\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "Grand\\s*Total\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "fallback": "last_amount"
+        },
+        "delivery_date": {
+          "label": "Delivery Date",
+          "patterns": [
+            "กำหนดส่ง\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "วันส่งมอบ\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Delivery\\s*Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": false
+        },
+        "payment_terms": {
+          "label": "Payment Terms",
+          "patterns": [
+            "เงื่อนไขการชำระ\\s*[:\\.]?\\s*([^\\n]+)",
+            "Payment\\s*Terms?\\s*[:\\.]?\\s*([^\\n]+)",
+            "Credit\\s*[:\\.]?\\s*(\\d+)\\s*(?:Days?|วัน)"
+          ],
+          "required": false
+        },
+        "buyer": {
+          "label": "Buyer",
+          "patterns": [
+            "ผู้สั่งซื้อ\\s*[:\\.]?\\s*([^\\n]+)",
+            "Buyer\\s*[:\\.]?\\s*([^\\n]+)",
+            "Purchaser\\s*[:\\.]?\\s*([^\\n]+)"
+          ],
+          "required": false
+        }
+      }
+    },
+    "delivery_note": {
+      "name": "ใบส่งของ",
+      "name_en": "Delivery Note",
+      "detect_keywords": ["ใบส่งของ", "DELIVERY NOTE", "ใบกำกับสินค้า", "D/N"],
+      "fields": {
+        "document_no": {
+          "label": "DN No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "D\\/N\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Delivery\\s*Note\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "po_reference": {
+          "label": "PO Reference",
+          "patterns": [
+            "อ้างอิงใบสั่งซื้อ\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)",
+            "PO\\s*Ref\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)",
+            "Your\\s*PO\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)"
+          ],
+          "required": false
+        },
+        "quantity": {
+          "label": "Quantity",
+          "patterns": [
+            "จำนวน\\s*[:\\.]?\\s*(\\d+)",
+            "Qty\\s*[:\\.]?\\s*(\\d+)",
+            "Quantity\\s*[:\\.]?\\s*(\\d+)"
+          ],
+          "required": false
+        },
+        "receiver": {
+          "label": "Receiver",
+          "patterns": [
+            "ผู้รับ\\s*[:\\.]?\\s*([^\\n]+)",
+            "Received\\s*by\\s*[:\\.]?\\s*([^\\n]+)"
+          ],
+          "required": false
+        }
+      }
+    },
+    "credit_note": {
+      "name": "ใบลดหนี้",
+      "name_en": "Credit Note",
+      "detect_keywords": ["ใบลดหนี้", "CREDIT NOTE", "C/N"],
+      "fields": {
+        "document_no": {
+          "label": "CN No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "C\\/N\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Credit\\s*Note\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "invoice_reference": {
+          "label": "Invoice Reference",
+          "patterns": [
+            "อ้างอิงใบกำกับภาษี\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)",
+            "Ref\\.?\\s*Invoice\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)",
+            "เลขที่ใบกำกับภาษีเดิม\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)"
+          ],
+          "required": false
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [
+            "จำนวนเงินที่ลด\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "ยอดลดหนี้\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "Credit\\s*Amount\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "fallback": "last_amount"
+        },
+        "reason": {
+          "label": "Reason",
+          "patterns": [
+            "สาเหตุ\\s*[:\\.]?\\s*([^\\n]+)",
+            "เหตุผล\\s*[:\\.]?\\s*([^\\n]+)",
+            "Reason\\s*[:\\.]?\\s*([^\\n]+)"
+          ],
+          "required": false
+        }
+      }
+    },
+    "debit_note": {
+      "name": "ใบเพิ่มหนี้",
+      "name_en": "Debit Note",
+      "detect_keywords": ["ใบเพิ่มหนี้", "DEBIT NOTE", "D/N"],
+      "fields": {
+        "document_no": {
+          "label": "DN No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Debit\\s*Note\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "invoice_reference": {
+          "label": "Invoice Reference",
+          "patterns": [
+            "อ้างอิงใบกำกับภาษี\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)",
+            "Ref\\.?\\s*Invoice\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]+)"
+          ],
+          "required": false
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [
+            "จำนวนเงินที่เพิ่ม\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "ยอดเพิ่มหนี้\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "fallback": "last_amount"
+        },
+        "reason": {
+          "label": "Reason",
+          "patterns": [
+            "สาเหตุ\\s*[:\\.]?\\s*([^\\n]+)",
+            "เหตุผล\\s*[:\\.]?\\s*([^\\n]+)"
+          ],
+          "required": false
+        }
+      }
+    },
+    "quotation": {
+      "name": "ใบเสนอราคา",
+      "name_en": "Quotation",
+      "detect_keywords": ["ใบเสนอราคา", "QUOTATION", "QUOTE"],
+      "fields": {
+        "document_no": {
+          "label": "Quotation No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Quotation\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "Quote\\s*No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})"
+          ],
+          "required": true
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [
+            "รวมเงินทั้งสิ้น\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})",
+            "Total\\s*[:\\.]?\\s*([\\d,]+\\.\\d{2})"
+          ],
+          "required": false,
+          "fallback": "last_amount"
+        },
+        "validity": {
+          "label": "Validity",
+          "patterns": [
+            "ใช้ได้ถึง\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Valid\\s*until\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "ราคานี้ใช้ได้\\s*(\\d+)\\s*วัน"
+          ],
+          "required": false
+        }
+      }
+    },
+    "custom": {
+      "name": "อื่นๆ",
+      "name_en": "Other/Custom",
+      "detect_keywords": [],
+      "fields": {
+        "document_no": {
+          "label": "Document No",
+          "patterns": [
+            "เลขที่\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{3,})",
+            "No\\.?\\s*[:\\.]?\\s*([A-Za-z0-9\\-\\/]{4,})"
+          ],
+          "required": false
+        },
+        "date": {
+          "label": "Date",
+          "patterns": [
+            "วันที่\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})",
+            "Date\\s*[:\\.]?\\s*(\\d{1,2}[\\.\\/\\-]\\d{1,2}[\\.\\/\\-]\\d{2,4})"
+          ],
+          "required": false
+        },
+        "amount": {
+          "label": "Amount",
+          "patterns": [],
+          "required": false,
+          "fallback": "last_amount"
+        }
+      }
+    }
+  },
+  "common_fields": {
+    "tax_id": {
+      "label": "Tax ID",
+      "label_th": "เลขประจำตัวผู้เสียภาษี",
+      "patterns": [
+        "\\b(\\d{13})\\b",
+        "\\b\\d{1}-\\d{4}-\\d{5}-\\d{2}-\\d{1}\\b",
+        "(?:เลข(?:ที่)?(?:ประจำตัว)?ผู้เสียภาษี(?:อากร)?|Tax\\s*ID|Tax\\s*No\\.?)\\s*[:\\.]?\\s*([0-9\\-\\s]{10,25})"
+      ],
+      "required": true,
+      "clean_non_digits": true,
+      "length": 13
+    },
+    "branch": {
+      "label": "Branch",
+      "label_th": "สาขา",
+      "patterns": [
+        "(?:สำนักงานใหญ่|สนญ\\.?|Head\\s*Office|H\\.?O\\.?)",
+        "(?:สาขา(?:ที่)?|Branch(?:\\s*No\\.?)?)\\s*[:\\.]?\\s*(\\d{1,5})"
+      ],
+      "required": false,
+      "default_hq": "00000",
+      "pad_zeros": 5
+    }
+  },
+  "output_columns": {
+    "order": [
+      "Link PDF",
+      "Page",
+      "Document Type",
+      "VendorID_OCR",
+      "Branch_OCR",
+      "Vendor code",
+      "ชื่อบริษัท",
+      "Document No",
+      "Date",
+      "Amount",
+      "Total Amount",
+      "Withholding Tax",
+      "Description",
+      "Sales Promotion",
+      "สาขา",
+      "สาขาในใบเสร็จ"
+    ]
+  }
+}

@@ -2378,7 +2378,20 @@ def render_page_1():
             
             st.markdown("---")
             
-            # Document Type Selection
+            # API Configuration - แสดงเฉพาะเมื่อเลือก API Typhoon
+            api_key_input = None
+            if st.session_state.ocr_type == "API Typhoon":
+                st.markdown("### API Configuration")
+                api_key_input = st.text_input(
+                    "API_KEY:",
+                    value=st.session_state.api_key,
+                    type="password",
+                    help="API Key สำหรับใช้กับ Extract_Inv.py",
+                    key="api_key_input"
+                )
+                st.markdown("---")
+            
+            # Document Type Selection (อยู่ในแถวเดียวกันกับ Document Type Templates)
             st.markdown("### Document Type")
             doc_type_options = {
                 "auto": "🔍 Auto Detect",
@@ -2408,17 +2421,6 @@ def render_page_1():
             
             st.markdown("---")
             
-            # API Configuration - แสดงเฉพาะเมื่อเลือก API Typhoon
-            api_key_input = None
-            if st.session_state.ocr_type == "API Typhoon":
-                st.markdown("### API Configuration")
-                api_key_input = st.text_input(
-                    "API_KEY:",
-                    value=st.session_state.api_key,
-                    type="password",
-                    help="API Key สำหรับใช้กับ Extract_Inv.py",
-                    key="api_key_input"
-                )
             # Poppler Path (ใช้ได้ทั้ง API และ Local)
             poppler_path_input = st.text_input(
                 "Poppler Path (optional):",

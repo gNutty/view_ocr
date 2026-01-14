@@ -393,6 +393,8 @@ if 'api_key' not in st.session_state:
     st.session_state.api_key = config_data.get('API_KEY', '')
 if 'poppler_path' not in st.session_state:
     st.session_state.poppler_path = config_data.get('POPPLER_PATH', POPPLER_PATH)
+if 'uploader_key' not in st.session_state:
+    st.session_state.uploader_key = 0
 
 # อัปเดตตัวแปร POPPLER_PATH ให้สอดคล้องกับ session (ใช้ใน pdf2image)
 if st.session_state.poppler_path:
@@ -2708,7 +2710,7 @@ def render_page_1():
                 type=['pdf'],
                 accept_multiple_files=True,
                 help=f"Upload PDF files to: {st.session_state.ocr_source_folder}",
-                key="pdf_uploader_ocr"
+                key=f"pdf_uploader_ocr_{st.session_state.uploader_key}"
             )
             
             if uploaded_pdfs:
@@ -2727,7 +2729,7 @@ def render_page_1():
                     st.success(f"✅ Saved {saved_count} PDF file(s) to: {st.session_state.ocr_source_folder}")
                     st.session_state.ocr_file_list_refresh += 1
                     # Clear uploader state to prevent infinite loop
-                    st.session_state["pdf_uploader_ocr"] = None
+                    st.session_state.uploader_key += 1
                     time.sleep(1)
                     st.rerun()
     
